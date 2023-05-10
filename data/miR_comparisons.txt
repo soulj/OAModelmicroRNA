@@ -1,0 +1,3 @@
+Factor	Numerator	Denominator
+Condition	day_7_right	day_7_left
+Condition	day_7_right	day_7_naive

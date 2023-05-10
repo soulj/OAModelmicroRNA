@@ -1,0 +1,3 @@
+Factor	Numerator	Condition
+Condition	hp199a	hpC
+Condition	hp199b	hpC

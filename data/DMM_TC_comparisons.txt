@@ -1,0 +1,2 @@
+Factor	Numerator	Denominator
+Condition	Day42	Day0

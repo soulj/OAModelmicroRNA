@@ -1,0 +1,109 @@
+---
+title: "microRNA differential expression in PTOA"
+output:
+  html_document:
+    df_print: paged
+---
+
+Load the libraries needed
+```{r include=FALSE}
+library(DESeq2)
+library(BiocParallel)
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+library(biomaRt)
+library(writexl)
+library(readxl)
+library(ggsci)
+library(RColorBrewer)
+```
+
+Perform differential expression analysis
+```{r}
+#load the utility functions
+source("src/utilityFunctions.R")
+
+
+#read in and prepare the microRNA counts for DESeq2
+mirCounts <- read.csv("data/mature_counts.csv")
+mirCounts <- column_to_rownames(mirCounts,"X")
+mirCounts <- t(mirCounts)
+colnames(mirCounts) <- gsub("_S\\d+_ME_L001_R1_001.mature","",colnames(mirCounts))
+
+#read in the the column meta data
+sampleTable <- read.delim("data/miR_sampleTable.txt")
+comparisonsTable <- read.delim("data/miR_comparisons.txt")
+
+#ensure the data is in the correct order
+mirCounts <- mirCounts[, match(as.character(sampleTable[,1]), colnames(mirCounts))]
+
+#perform some soft thresholding to remove very lowly expressed microRNAs
+mirCounts <- mirCounts[ rowMeans(mirCounts)>=3,]
+
+#make the DESeq2 object
+dds <- DESeqDataSetFromMatrix(countData = mirCounts, colData = sampleTable, 
+                                design = ~Condition)
+#run DESeq2
+dds <- DESeq(dds)
+
+#save the counts for later use
+mirCounts <- counts(dds,normalized=TRUE)
+saveRDS(mirCounts,"data/mirCounts.RDS")
+
+#get the differential expression for all the comparisons
+resultsTableList <- lapply(1:nrow(comparisonsTable), 
+                       function(x) getResultsDataFrame(dds, comparisonsTable[x,
+                                                                             1], comparisonsTable[x, 2], comparisonsTable[x,3]))
+
+#number of differentially expressed microRNAs
+d7aclvsnaive <- resultsTableList[[2]]
+numUp <- nrow(na.omit(d7aclvsnaive[d7aclvsnaive$day_7_rightvsday_7_naive_log2FoldChange >= log2(1.5) & d7aclvsnaive$day_7_rightvsday_7_naive_padj <=0.05,]))
+sprintf("number upregulated microRNAs is %d",numUp)
+
+numDown <- nrow(na.omit(d7aclvsnaive[d7aclvsnaive$day_7_rightvsday_7_naive_log2FoldChange <= log2(1/1.5) & d7aclvsnaive$day_7_rightvsday_7_naive_padj <=0.05,]))
+sprintf("number downregulated microRNAs is %d",numDown)
+
+#tidy up the results and add the meanCounts to the results table
+meanCounts <- stack(rowMeans(counts(dds,normalized=TRUE)))[,c(2,1)]
+colnames(meanCounts) <- c("ID","meanCounts")
+
+resultsTableList <- lapply(resultsTableList,rownames_to_column,var="ID")
+resultsTableList <- lapply(resultsTableList,cbind,meanCounts[,2,drop=FALSE])
+
+
+#write out the results
+write.table(resultsTableList[[2]], file = "results/d7aclvsnaive_miRNA.txt", col.names = T,row.names = F, sep = "\t", quote = F)
+names(resultsTableList) <- c("D7ACLvsConlateral","D7ACLvsNaive")
+write_xlsx(resultsTableList,"results/SupplementryTable4.xlsx")
+
+
+
+```
+
+Make volcano plots for every set of differential expression
+```{r}
+volcanoPlots <- lapply(resultsTableList,plotMirVolcano)
+```
+
+
+Make a MA plot
+```{r}
+MAPlots <- lapply(resultsTableList,plotMA,meanCounts)
+```
+
+
+PCA plot
+```{r}
+pca <- plotCustomPCA(varianceStabilizingTransformation(dds),c("Treatment","Day")) +
+  theme_cowplot(font_size = 28) + theme(axis.line = element_line(size = 1.2))
+```
+
+
+Save all the figures
+```{r}
+save_plot("figures/Fig2A_PCA.png",pca,base_height = 8,base_width = 8,bg="white")
+save_plot("figures/Fig2B_volcano.png",volcanoPlots[[2]],base_height = 6,base_width = 6,bg="white")
+save_plot("figures/Fig2C_MAPlot.png",MAPlots[[2]],base_height = 6,base_width = 6,bg="white")
+```
