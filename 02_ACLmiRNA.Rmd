@@ -96,7 +96,7 @@ MAPlots <- lapply(resultsTableList,plotMA,meanCounts)
 
 PCA plot
 ```{r}
-pca <- plotCustomPCA(varianceStabilizingTransformation(dds),c("Treatment","Day")) +
+pca <- plotCustomPCA(varianceStabilizingTransformation(dds),c("Day","Treatment")) +
   theme_cowplot(font_size = 28) + theme(axis.line = element_line(size = 1.2))
 ```
 
