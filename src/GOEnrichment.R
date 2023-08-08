@@ -243,7 +243,9 @@ plotEnrichment <- function(results,n=10,IDs=NULL) {
     scale_size(range=c(8,25)) +
     theme(axis.line = element_line(size = 1.4)) +
     scale_color_gradient(low = "#EE8879FF", high = "#E64B35FF") +
-    scale_x_continuous(expand = expansion(mult = c(0.15, 0.15)))
+    scale_x_continuous(expand = expansion(mult = c(0.15, 0.15))) +
+    guides(colour = guide_legend(order = 1), 
+             size = guide_legend(order = 0))
   
   
   return(g)
