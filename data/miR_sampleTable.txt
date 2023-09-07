@@ -1,19 +1,20 @@
-Sample	File	Condition	Day	Treatment
-U120-H-001	U120-H-001	day_1_left	Day1	Contralateral
-U120-H-002	U120-H-002	day_1_right	Day1	ACL Rupture
-U120-H-003	U120-H-003	day_1_right	Day1	ACL Rupture
-U120-H-004	U120-H-004	day_1_left	Day1	Contralateral
-U120-H-005	U120-H-005	day_1_left	Day1	Contralateral
-U120-H-006	U120-H-006	day_1_right	Day1	ACL Rupture
-U120-H-007	U120-H-007	day_7_naive	Day7	Naive
-U120-H-008	U120-H-008	day_7_naive	Day7	Naive
-U120-H-009	U120-H-009	day_7_naive	Day7	Naive
-U120-H-010	U120-H-010	day_7_naive	Day7	Naive
-U120-H-011	U120-H-011	day_7_naive	Day7	Naive
-U120-H-012	U120-H-012	day_7_naive	Day7	Naive
-U120-H-013	U120-H-013	day_7_left	Day7	Contralateral
-U120-H-014	U120-H-014	day_7_left	Day7	Contralateral
-U120-H-015	U120-H-015	day_7_left	Day7	Contralateral
-U120-H-016	U120-H-016	day_7_right	Day7	ACL Rupture
-U120-H-017	U120-H-017	day_7_right	Day7	ACL Rupture
-U120-H-018	U120-H-018	day_7_right	Day7	ACL Rupture
+Sample	File	Condition	Day	Treatment	Mouse
+U120-H-001	U120-H-001	day_1_left	Day1	Contralateral	A
+U120-H-002	U120-H-002	day_1_right	Day1	ACL Rupture	B
+U120-H-003	U120-H-003	day_1_right	Day1	ACL Rupture	A
+U120-H-004	U120-H-004	day_1_left	Day1	Contralateral	B
+U120-H-005	U120-H-005	day_1_left	Day1	Contralateral	C
+U120-H-006	U120-H-006	day_1_right	Day1	ACL Rupture	C
+U120-H-007	U120-H-007	day_7_naive	Day7	Naive	D
+U120-H-008	U120-H-008	day_7_naive	Day7	Naive	E
+U120-H-009	U120-H-009	day_7_naive	Day7	Naive	F
+U120-H-010	U120-H-010	day_7_naive	Day7	Naive	F
+U120-H-011	U120-H-011	day_7_naive	Day7	Naive	D
+U120-H-012	U120-H-012	day_7_naive	Day7	Naive	E
+U120-H-013	U120-H-013	day_7_left	Day7	Contralateral	G
+U120-H-014	U120-H-014	day_7_left	Day7	Contralateral	H
+U120-H-015	U120-H-015	day_7_left	Day7	Contralateral	I
+U120-H-016	U120-H-016	day_7_right	Day7	ACL Rupture	H
+U120-H-017	U120-H-017	day_7_right	Day7	ACL Rupture	G
+U120-H-018	U120-H-018	day_7_right	Day7	ACL Rupture	I
+

@@ -26,4 +26,11 @@ AnnotationForge
 AnnotationHub
 ensembldb
 GenomicFeatures
-
+limma
+statmod
+edgeR
+rcartocolor
+clusterProfiler
+ComplexHeatmap
+reactome.db
+quarto

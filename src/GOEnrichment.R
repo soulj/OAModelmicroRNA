@@ -240,12 +240,10 @@ plotEnrichment <- function(results,n=10,IDs=NULL) {
     xlab("Fold Enrichment") + theme(axis.title.y = element_blank()) +
     theme(axis.text.y =element_text(size = 30)) +
     labs(size = "# genes", color = expression(-log[10](p))) +
-    scale_size(range=c(8,25)) +
+    scale_size(range=c(8,25),guide = guide_legend(order = 1)) +
     theme(axis.line = element_line(size = 1.4)) +
-    scale_color_gradient(low = "#EE8879FF", high = "#E64B35FF") +
-    scale_x_continuous(expand = expansion(mult = c(0.15, 0.15))) +
-    guides(colour = guide_legend(order = 1), 
-             size = guide_legend(order = 0))
+    scale_color_gradient(low = "#EE8879FF", high = "#CC6677") +
+    scale_x_continuous(expand = expansion(mult = c(0.2, 0.15)))
   
   
   return(g)

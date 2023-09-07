@@ -1,0 +1,233 @@
+---
+title: "mir199 differential expression"
+format: html
+editor: visual
+---
+
+Load the required libraries
+
+```{r include=FALSE}
+library(DESeq2)
+library(BiocParallel)
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+library(EnsDb.Hsapiens.v103)
+library(biomaRt)
+library(readxl)
+library(org.Hs.eg.db)
+library(GOSemSim)
+library(writexl)
+library(feather)
+library(httr)
+library(ggsci)
+library(RColorBrewer)
+library(ComplexHeatmap)
+library(reactome.db)
+library(org.Hs.eg.db)
+library(clusterProfiler)
+library(goseq)
+library(rcartocolor)
+
+source("src/utilityFunctions.R")
+source("src/reactomeEnrichment.R")
+```
+
+Run the differential expression analysis using the counts matrix from kallisto/tximport
+
+```{r include=FALSE}
+#get the metadata and the counts x gene matrix from the pipeline
+sampleTable <- "data/HAC_mir199_sampleTable.txt"
+comparisonsTable <- "data/HAC_mir199_comparisons.txt"
+txiData  <- "data/HAC_mir199_txi.RDS"
+
+#run the differential expression pipeline
+res <- runDiffExp(txiData,sampleTable,comparisonsTable, method="DESeq2",OATargets = NULL,variables = c("Donor","Condition"),PCAColumns = c("Donor","Condition"),foldChangeTable = "mir199_mRNADiff.txt",saveCounts = TRUE,fcThreshold=1.3,nDown = 6,nUp=12)
+
+#get the number of up and down differentially expressed genes
+mir199_5p <- res$cutTables[[1]]
+numUp <- nrow(na.omit(mir199_5p[mir199_5p$logFC >= log2(1.3) & mir199_5p$adj.P.Val <=0.05,]))
+sprintf("number upregulated genes is %d",numUp)
+
+numDown <- nrow(na.omit(mir199_5p[mir199_5p$logFC <= log2(1/1.3) & mir199_5p$adj.P.Val <=0.05,]))
+sprintf("number downregulated genes is %d",numDown)
+
+
+#compare the fold changes between the -a and -b
+hp199a <- res$cutTables[[1]]
+hp199a <- hp199a[ hp199a$adj.P.Val<=0.05,]
+hp199b <- res$cutTables[[2]]
+hp199b <- hp199b[ hp199b$adj.P.Val<=0.05,]
+merged <- merge(hp199a,hp199b,by="ID")
+cor.test(merged$logFC.x,merged$logFC.y)
+
+
+```
+
+Get predicted targets for mir199 and compare with the fold change upon mir199 knockdown
+
+```{r include=FALSE}
+#get the target scan data
+#targetscan <- read.delim("https://www.targetscan.org/vert_80/temp/TargetScan8.0__miR-199-5p.predicted_targets.txt")
+targetscan <- read.delim("data/TargetScan8.0__miR-199-5p.predicted_targets.txt")
+
+#get the TPMs for each gene
+TPMs <- readRDS("data/HAC_mir199_txi.RDS")
+TPMs <- stack(rowMeans(TPMs$abundance))
+
+#plot the fold change of the predicted mir199 targets
+mir199Targets <- targetPlot(res$cutTables[[1]],targetscan,TPMs)
+
+#add the ACL data for comparison
+aclDiffExp <- readRDS("data/D7ACLvsNaive_diffExp.RDS")
+aclDiffExp <- aclDiffExp[,c("gene_name","logFC","adj.P.Val")]
+colnames(aclDiffExp)[-1] <- paste(colnames(aclDiffExp)[-1],"day_7_rightvsday_7_naive",sep="_")
+human2geneTable <- convertHumanGeneList(mir199Targets$targets$gene_name)
+aclDiffExp <- merge(aclDiffExp,human2geneTable,by.x="gene_name",by.y="MGI.symbol")
+
+
+mir199.targets <- merge(mir199Targets$targets,aclDiffExp,by.x="gene_name",by.y="HGNC.symbol")  
+
+mir199.targets.filt <- mir199.targets[ mir199.targets$adj.P.Val<=0.05 & mir199.targets$logFC>0,]
+mir199.targets.filt <- mir199.targets.filt[ mir199.targets.filt$adj.P.Val_day_7_rightvsday_7_naive<=0.05,]
+
+mir199.targets.filt <- mir199.targets.filt[ order(mir199.targets.filt$Predicted.occupancy..low.miRNA.,decreasing = TRUE),]
+
+
+#get the mirDIP targets
+mirDIP <- getMirDipTargets("hsa-miR-199a-5p")
+
+
+write_xlsx(list(filtered=mir199.targets.filt,all=mir199.targets,mirDIP=mirDIP),"results/mir1995pTargets.xlsx")
+
+
+#write out table of results
+#save the differential expression tables
+cutTables <- res$cutTables
+names(cutTables) <- c("mir199aInhibitionvsCtrl","mir199bInhibitionvsCtrl")
+write_xlsx(c(cutTables,list(mir199.targetscan=mir199.targets,mir199.mirDIP=mirDIP)),"results/SupplementryTable5.xlsx")
+```
+
+Reactome pathway enrichment of the differential expression
+
+```{r}
+#format the differential expresson data
+mir199KDDiffExp <- res$cutTables[[1]]
+mir199KDDiffExp <- mir199KDDiffExp[,c("gene_name","logFC","adj.P.Val")]
+
+#get the human reactome pathways
+reactomePathways <- getReactomePathways("Human")
+
+#read in the gene lengths for GO enrichment
+geneLengths <- read.delim("data/humanGeneLengths.txt")
+
+#get enriched pathways with the upregulated genes
+enrichedPathway.up <- pathwayEnrichment(differentialExpression = mir199KDDiffExp,
+                                      reactomePathways = reactomePathways,
+                                      geneExonLengths = geneLengths,
+                                      foldChangeOnly = FALSE,
+                                      foldchange = 1,
+                                      padj = 0.05,
+                                      direction="up")
+
+#get enriched pathways with the downregulated genes
+enrichedPathways.down <- pathwayEnrichment(differentialExpression = mir199KDDiffExp,
+                                      reactomePathways = reactomePathways,
+                                      geneExonLengths = geneLengths,
+                                      foldChangeOnly = FALSE,
+                                      foldchange = 1,
+                                      padj = 0.05,
+                                      direction="down")
+
+#select pathways for plotting
+IDs=c("Signaling by WNT","Extracellular matrix organization","Collagen degradation","Cellular Senescence")
+
+enrichmentPlot <- plotEnrichment(enrichedPathway.up,n=5,IDs = IDs) +
+    scale_x_continuous(expand = expansion(mult = c(0.35, 0.2)))
+
+
+#save the result
+write_xlsx(list(pathways.up=enrichedPathway.up,pathways.down=enrichedPathways.down),"results/SupplementryTable6.xlsx")
+
+
+```
+
+Gene ontology GSEA of the differential expression - more sensitive to coordinated changes
+
+```{r include=FALSE}
+#get the enriched gene ontology terms
+egs <- bitr(unique(mir199KDDiffExp$gene_name), "SYMBOL", "ENTREZID", OrgDb = org.Hs.eg.db)
+ranked <- merge(mir199KDDiffExp,egs,by.x="gene_name",by.y="SYMBOL")
+
+rankedGeneList <- ranked$logFC
+names(rankedGeneList) <- ranked$ENTREZID
+rankedGeneList <- sort(rankedGeneList,decreasing = TRUE)
+
+GeneOntologyGSEA <- gseGO(rankedGeneList,
+                          OrgDb        = org.Hs.eg.db,
+                          ont          = "BP",
+                          minGSSize    = 10,
+                          maxGSSize    = 500,
+                          pvalueCutoff = 0.05,
+                          eps=0)
+
+#function that returns gene symbols given a vector of entrez ids
+getGeneSymbol <- function(ids){
+  
+  ids <- unlist(strsplit(ids,split = "/"))
+  symbols <- bitr(ids,"ENTREZID",  "SYMBOL", OrgDb = org.Hs.eg.db)
+  symbols <- paste(sort(symbols$SYMBOL),collapse=" ")
+  return(symbols)
+}
+
+GeneOntologyGSEA <- as.data.frame(GeneOntologyGSEA)
+GeneOntologyGSEA$genes <- sapply(GeneOntologyGSEA$core_enrichment,getGeneSymbol)
+GeneOntologyGSEA$numGenes <- sapply(GeneOntologyGSEA$genes,str_count, '\\w+')
+
+
+
+IDs <- c("GO:0022613","GO:0044273","GO:0034329","GO:0090399","GO:0030036","GO:0140448")
+
+results <- GeneOntologyGSEA[ GeneOntologyGSEA$ID %in% IDs,]
+  results$log_p <- -log10(results$p.adjust)
+  results$Term <- str_wrap(results$Description,width=25)
+  results$Term <- fct_reorder(results$Term,results$NES,.desc = TRUE)
+
+  goPlot <- ggplot(results,aes(x = NES,y=Term)) +
+    geom_point(aes(color = log_p,size=numGenes)) + theme_cowplot(font_size = 38) +
+    xlab("Normalised Enrichment Score") + theme(axis.title.y = element_blank()) +
+    theme(axis.text.y =element_text(size = 30)) +
+    labs(size = "# genes", color = expression(-log[10](p))) +
+    scale_size(range=c(8,25),guide = guide_legend(order = 1)) +
+    theme(axis.line = element_line(size = 1.4)) +
+    scale_color_gradient(low = "#EE8879FF", high = "#E64B35FF") +
+    scale_x_continuous(expand = expansion(mult = c(0.2, 0.2)))
+
+
+
+```
+
+Comparison to skeletalvis
+
+```{r include=FALSE}
+accessions <- read.delim("data/accessions.txt")
+accessions$combined <- paste(accessions$accession,accessions$comparison,sep="_")
+foldchangeTable <- as.data.frame(read_feather("data/foldChangeTable.feather"))
+rownames(foldchangeTable)<- foldchangeTable$ID
+
+sims <-  getSim(mir199KDDiffExp,foldchangeTable,accessions,"mir199")
+sims <- sims[ order(sims$zscore,decreasing =TRUE),c("accession","comparisonsText","zscore")]
+
+
+write_xlsx(sims,"results/SupplementryTable7.xlsx")
+
+```
+
+Save all the plots
+
+```{r}
+save_plot("figures/Fig3A_volcano.png",res$volcano[[1]],base_height = 6,base_width = 6,bg="white")
+save_plot("figures/Fig3B_targets.png",mir199Targets$plot,base_height = 6,base_width = 6,bg="white")
+save_plot("figures/Fig3C_PathwayPlot.png",enrichmentPlot,base_height = 8,base_width = 11,bg="white")
+```

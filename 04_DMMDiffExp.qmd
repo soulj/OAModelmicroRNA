@@ -1,0 +1,188 @@
+---
+title: "mRNA differential expression in PTOA"
+output: html_document
+---
+
+Load the libraries needed
+```{r include=FALSE}
+library(DESeq2)
+library(BiocParallel)
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+library(EnsDb.Hsapiens.v103)
+library(EnsDb.Mmusculus.v103)
+library(biomaRt)
+library(readxl)
+library(feather)
+library(writexl)
+library(ggsci)
+library(RColorBrewer)
+library(rcartocolor)
+```
+
+Perform differential expression analysis of the mRNA data
+```{r include=FALSE}
+source("src/utilityFunctions.R")
+
+
+#get the OATargets data to annotate genes previously experimentally perturbed in PTOA
+annotationData <- read_excel("data/AnnotationData-2022-10-27.xlsx",sheet = 2)
+
+#get the consensus effect - change the column to consider no effect experiments to be superseded by experiments where they show an effect
+annotationData <- annotationData %>% dplyr::filter(`Inferred gene effect`!= "No effect") %>% dplyr::group_by(Gene) %>%
+  dplyr::mutate(effectConsensus=case_when(dplyr::n_distinct(`Inferred gene effect`)>1 ~ "Ambiguous",TRUE ~ `Inferred gene effect`)) %>%
+  dplyr::filter(row_number(Gene) == 1) %>% as.data.frame()
+
+#get a table of the human and gene symbols
+human2geneTable <- convertHumanGeneList(annotationData$Gene)
+
+
+#merge the annotation table to this table as OATargets is human gene name based
+annotationData <- merge(annotationData,human2geneTable,by.x="Gene",by.y="HGNC.symbol")
+
+
+#get the sample table, the comparisons to do and the gene x count matrix from the SkeletalVis pipeline
+sampleTable <- "data/DMM_TC_sampleTable.txt"
+comparisonsTable <- "data/DMM_TC_comparisons.txt"
+txiData  <- "data/DMM_TC_txi.RDS"
+
+#run the differential expression analysis pipeline
+res <- runDiffExp(txiData,sampleTable,comparisonsTable,annotationData,method="DESeq2",variables = "Condition",PCAColumns = "Condition",foldChangeTable = "DMM_TC_mRNADiff.txt",species = "Mouse",nDown=12,nUp=12)
+
+
+#number of differentially expressed genes
+d42DMMvD0 <- res$cutTables[[1]]
+numUp <- nrow(na.omit(d42DMMvD0[d42DMMvD0$logFC >= log2(1.5) & d42DMMvD0$adj.P.Val <=0.05,]))
+sprintf("number upregulated genes is %d",numUp)
+
+numDown <- nrow(na.omit(d42DMMvD0[d42DMMvD0$logFC <= log2(1/1.5) & d42DMMvD0$adj.P.Val <=0.05,]))
+sprintf("number downregulated genes is %d",numDown)
+
+#save as an excel file
+cutTables <- res$cutTables
+names(cutTables) <- "d42DMMvD0"
+write_xlsx(cutTables,"results/SupplementryTable8.xlsx")
+
+#save the differential expression results for later use
+saveRDS(res$cutTables[[1]],file="data/d42DMMvD0_diffExp.RDS")
+
+
+```
+
+Save all the plots
+```{r}
+
+save_plot("figures/Fig4A_PCA.png",res$pca,base_height = 8,base_width = 8,bg="white")
+save_plot("figures/Fig4B_Volcano.png",res$volcano[[1]],base_height = 8,base_width = 8,bg="white")
+save_plot("figures/Fig4C_OATargets.png",res$oatargets[[1]][[1]],base_height = 6,base_width = 6,bg="white")
+
+```
+
+OATargets stats
+```{r}
+diffTargets <- res$oatargets[[1]][[2]]
+totals <- table(diffTargets$effectConsensus)[c("Protective","Detrimental")]
+totals
+
+diffTargets.degs <- diffTargets[ diffTargets$logFC >= log2(1.5) & diffTargets$adj.P.Val <= 0.05,]
+
+totals.degs <- table(diffTargets.degs$effectConsensus)[c("Protective","Detrimental")]
+totals.degs
+
+
+
+prop.test(totals.degs, totals)
+```
+
+Compare to ACL
+```{r}
+#load the ACL day 7 data and filter for significance
+ACL <- readRDS("data/D7ACLvsNaive_diffExp.RDS")
+ACL <- ACL[ ACL$adj.P.Val<=0.05,]
+DMM <- cutTables[[1]]
+DMM <- DMM[ DMM$adj.P.Val<=0.05,]
+
+combined <- merge(ACL,DMM,by="ID",suffixes=c("_ACL","_DMM"))
+
+g1 <- ggscatter(combined,x="logFC_DMM",y="logFC_ACL", cor.coef = TRUE, cor.coeff.args = list(method = "spearman", label.sep = "\n")) +cowplot::theme_cowplot(font_size = 24)  +xlab("DMM Day42 vs Day0")+ylab("ACL Rupture Day7 vs Naive")
+
+save_plot("figures/Fig4D_correlation_spearman.png",g1,base_height = 6,base_width = 6,bg="white")
+
+
+
+```
+
+GO analysis of the differentially expressed genes
+
+```{r include=FALSE}
+source("src/GOEnrichment.R")
+
+#read in the gene lengths for GO enrichment
+geneLengths <- read.delim("data/mouseGeneLengths.txt")
+
+#order the results in the correct format
+DMM <- cutTables[[1]][,c("gene_name","logFC","adj.P.Val","ID")]
+
+#perform GO enrichment
+goresults.up <- GOEnrichment(differentialExpression = DMM,geneLengths = geneLengths,species="Mouse",foldChangeOnly = FALSE,foldchange = 1.5 ,padj = 0.05 ,direction = "up")
+
+
+goresults.down <- GOEnrichment(differentialExpression = DMM,geneLengths = geneLengths,species="Mouse",foldChangeOnly = FALSE,foldchange = 1.5 ,padj = 0.05 ,direction = "down")
+
+
+#save the result
+write_xlsx(list(GO.Up=goresults.up$GOResults,GO.Down=goresults.down$GOResults),"results/SupplementryTable_GODMM.xlsx")
+
+IDs <- c("GO:0030198","GO:0001503","GO:0009611","GO:0007266","GO:0009612","GO:0045597","GO:0016055")
+goPlot.up <- plotEnrichment(goresults.up[[1]],IDs=IDs)
+IDs <- c("GO:0000278","GO:0006260","GO:0007229","GO:0043069","GO:0000302","GO:0001816")
+goPlot.down <- plotEnrichment(goresults.down[[1]],IDs=IDs)
+
+save_plot("figures/Fig4E_GOMDS_up.png",goPlot.up,base_height = 11,base_width = 12,bg="white")
+save_plot("figures/Fig4F_GOMDS_down.png",goPlot.down,base_height = 11,base_width = 13,bg="white")
+
+```
+
+
+Skeletalvis comparison
+
+```{r}
+accessions <- read.delim("data/accessions.txt")
+accessions$combined <- paste(accessions$accession,accessions$comparison,sep="_")
+
+foldchangeTable <- as.data.frame(read_feather("data/foldChangeTable.feather"))
+
+#get a table of the human and gene symbols
+human2geneTable <- convertHumanGeneList(foldchangeTable$ID)
+
+DMM <- cutTables[[1]]
+DMM <- merge(DMM,human2geneTable,by.x="gene_name",by.y="MGI.symbol")
+DMM <- DMM[,c("HGNC.symbol","logFC","adj.P.Val","ID")]
+colnames(DMM)[1] <- "GeneSymbol"
+DMM <- DMM[ DMM$GeneSymbol %in% foldchangeTable$ID,]
+DMM <- DMM %>% group_by(GeneSymbol) %>% dplyr::slice_max(abs(logFC))
+
+
+#add the DMM data to the fold change table
+foldchangeTable <- merge(foldchangeTable,DMM[,c("GeneSymbol","logFC")],by.x="ID",by.y="GeneSymbol",all.x=TRUE)
+
+
+rownames(foldchangeTable)<- foldchangeTable$ID
+foldchangeTable <- foldchangeTable[,c(2:ncol(foldchangeTable),1)]
+
+
+d7aclvsnaive <- readRDS("data/D7ACLvsNaive_diffExp.RDS")
+d7aclvsnaive <- merge(d7aclvsnaive,human2geneTable,by.x="gene_name",by.y="MGI.symbol")
+d7aclvsnaive <- d7aclvsnaive[,c("HGNC.symbol","logFC","adj.P.Val","ID")]
+colnames(d7aclvsnaive)[1] <- "GeneSymbol"
+
+
+#add a description of the DMM data
+accessions <- rbind(accessions,data.frame(accession="OurData","comparison"=1,comparisonsText="Ours","combined"="logFC"))
+
+sims <-  getSim(d7aclvsnaive,foldchangeTable,accessions,"ACL")
+sims <- sims[ order(sims$zscore,decreasing =TRUE),c("accession","comparisonsText","zscore")]
+```
+

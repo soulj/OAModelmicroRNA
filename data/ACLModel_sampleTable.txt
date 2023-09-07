@@ -1,21 +1,18 @@
-Sample	File	Condition	Day	Treatment
-R119-H-001	R119-H-001	day_1_left	Day1	Contralateral
-R119-H-002	R119-H-002	day_1_right	Day1	ACL Rupture
-R119-H-003	R119-H-003	day_1_right	Day1	ACL Rupture
-R119-H-004	R119-H-004	day_1_left	Day1	Contralateral
-R119-H-005	R119-H-005	day_1_left	Day1	Contralateral
-R119-H-006	R119-H-006	day_1_right	Day1	ACL Rupture
-R119-H-007	R119-H-007	day_1_right	Day7	Naive
-R119-H-008	R119-H-008	day_7_naive	Day7	Naive
-R119-H-009	R119-H-009	day_7_naive	Day7	Naive
-R119-H-010	R119-H-010	day_7_naive	Day7	Naive
-R119-H-011	R119-H-011	day_7_naive	Day7	Naive
-R119-H-012	R119-H-012	day_7_naive	Day7	Naive
-R119-H-014	R119-H-014	day_7_left	Day7	Contralateral
-R119-H-015	R119-H-015	day_7_left	Day7	Contralateral
-R119-H-016	R119-H-016	day_7_right	Day7	ACL Rupture
-R119-H-017	R119-H-017	day_7_right	Day7	ACL Rupture
-R119-H-018	R119-H-018	day_7_right	Day7	ACL Rupture
-
-
-
+Sample	File	Condition	Day	Treatment	Mouse
+R119-H-001	R119-H-001	day_1_left	Day1	Contralateral	A
+R119-H-002	R119-H-002	day_1_right	Day1	ACL Rupture	B
+R119-H-003	R119-H-003	day_1_right	Day1	ACL Rupture	A
+R119-H-004	R119-H-004	day_1_left	Day1	Contralateral	B
+R119-H-005	R119-H-005	day_1_left	Day1	Contralateral	C
+R119-H-006	R119-H-006	day_1_right	Day1	ACL Rupture	C
+R119-H-007	R119-H-007	day_7_naive	Day7	Naive	D
+R119-H-008	R119-H-008	day_7_naive	Day7	Naive	E
+R119-H-009	R119-H-009	day_7_naive	Day7	Naive	F
+R119-H-010	R119-H-010	day_7_naive	Day7	Naive	F
+R119-H-011	R119-H-011	day_7_naive	Day7	Naive	D
+R119-H-012	R119-H-012	day_7_naive	Day7	Naive	E
+R119-H-014	R119-H-014	day_7_left	Day7	Contralateral	H
+R119-H-015	R119-H-015	day_7_left	Day7	Contralateral	I
+R119-H-016	R119-H-016	day_7_right	Day7	ACL Rupture	H
+R119-H-017	R119-H-017	day_7_right	Day7	ACL Rupture	G
+R119-H-018	R119-H-018	day_7_right	Day7	ACL Rupture	I

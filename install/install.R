@@ -1,7 +1,7 @@
 options(Ncpus = 6)
 
 
-#function to install libararies from bioconductor
+#function to install libraries from bioconductor
 installPackage <- function(libName) {
   if(libName %in% rownames(installed.packages()) == FALSE){
     BiocManager::install(libName,ask = FALSE)

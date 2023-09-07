@@ -1,0 +1,153 @@
+---
+title: "microRNA-sequencing of ACL model"
+format: html
+editor: visual
+---
+
+Load the libraries needed
+
+
+```{r}
+
+```
+
+
+```{r include=FALSE}
+library(DESeq2)
+library(BiocParallel)
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+library(biomaRt)
+library(writexl)
+library(readxl)
+library(ggsci)
+library(RColorBrewer)
+library(limma)
+library(edgeR)
+library(rcartocolor)
+```
+
+Perform differential expression analysis
+
+```{r}
+#load the utility functions
+source("src/utilityFunctions.R")
+
+
+#read in and prepare the microRNA counts for DESeq2
+mirCounts <- read.csv("data/mature_counts.csv")
+mirCounts <- column_to_rownames(mirCounts,"X")
+mirCounts <- t(mirCounts)
+colnames(mirCounts) <- gsub("_S\\d+_ME_L001_R1_001.mature","",colnames(mirCounts))
+
+#read in the the column meta data
+sampleTable <- read.delim("data/miR_sampleTable.txt")
+comparisonsTable <- read.delim("data/miR_comparisons.txt")
+
+#ensure the data is in the correct order
+mirCounts <- mirCounts[, match(as.character(sampleTable[,1]), colnames(mirCounts))]
+
+#perform some soft thresholding to remove very lowly expressed microRNAs
+mirCounts <- mirCounts[ rowMeans(mirCounts)>=3,]
+
+#make the DESeq2 object
+dds <- DESeqDataSetFromMatrix(countData = mirCounts, colData = sampleTable, 
+                                design = ~Condition)
+#run DESeq2 for the variance stabilised PCA and normalised counts
+dds <- DESeq(dds)
+
+#save the counts for later use
+mirCounts <- counts(dds,normalized=TRUE)
+saveRDS(mirCounts,"data/mirCounts.RDS")
+
+
+  design  <- model.matrix(as.formula("~0 + Condition"), colData(dds))
+
+#use limma for the reported differential expression to be consistent with the mouse differential expression analysis
+  countData <- DGEList(mirCounts)
+  countData <- calcNormFactors( countData )
+  
+  #remove very lowly expressed miRNAs
+  # countData <- countData[keep, ]
+  
+  block = "Mouse"
+  
+ #run voom the first time
+  vobj <- voom(countData, design, plot=FALSE)
+
+    dupcor <- duplicateCorrelation(vobj,design,block=colData(dds)[,block])
+    
+   # run voom again considering the duplicateCorrelation results
+  vobj <- voom( countData, design, plot=FALSE, block=colData(dds)[,block], correlation=dupcor$consensus)
+    
+  # Estimate linear mixed model with a single variance component
+  # Fit the model for each gene, 
+   dupcor <- duplicateCorrelation(vobj, design, block=colData(dds)[,block])
+    
+    # This step uses only the genome-wide average for the random effect
+  fit <- lmFit(vobj, design, block=colData(dds)[,block], correlation=dupcor$consensus)
+  
+
+  contrasts <- apply(comparisonsTable, 1, function(x) paste0(make.names(x[1]), 
+                                                          make.names(x[2]), "-", make.names(x[1]), make.names(x[3])))
+  contrast.matrix <- makeContrasts(contrasts = contrasts, 
+                                   levels = colnames((coef(fit))))
+  fit2 <- contrasts.fit(fit, contrast.matrix)
+  fit2 <- eBayes(fit2)
+  resultsTableLimma <- lapply(seq_along(contrasts), getLimmaResultsDataFrame,fit2)
+  names(resultsTableLimma) <- contrasts
+
+
+#number of differentially expressed microRNAs
+d7aclvsnaive <- resultsTableLimma[[2]]
+numUp <- nrow(na.omit(d7aclvsnaive[d7aclvsnaive$logFC >= log2(1.5) & d7aclvsnaive$adj.P.Val <=0.05,]))
+sprintf("number upregulated microRNAs is %d",numUp)
+
+numDown <- nrow(na.omit(d7aclvsnaive[d7aclvsnaive$logFC <= log2(1/1.5) & d7aclvsnaive$adj.P.Val <=0.05,]))
+sprintf("number downregulated microRNAs is %d",numDown)
+
+#tidy up the results and add the meanCounts to the results table
+meanCounts <- stack(rowMeans(counts(dds,normalized=TRUE)))[,c(2,1)]
+colnames(meanCounts) <- c("ID","meanCounts")
+
+resultsTableLimma <- lapply(resultsTableLimma,rownames_to_column,var="ID")
+resultsTableLimma <- lapply(resultsTableLimma,merge,meanCounts,by="ID")
+
+
+#write out the results
+write.table(resultsTableLimma[[2]], file = "results/d7aclvsnaive_miRNA.txt", col.names = TRUE,row.names = FALSE, sep = "\t", quote = FALSE)
+names(resultsTableLimma) <- c("D7ACLvsConlateral","D7ACLvsNaive")
+write_xlsx(resultsTableLimma,"results/SupplementryTable4.xlsx")
+
+
+
+```
+
+Make volcano plots for every set of differential expression
+
+```{r}
+volcanoPlots <- lapply(resultsTableLimma,plotMirVolcano)
+```
+
+Make a MA plot
+
+```{r}
+MAPlots <- lapply(resultsTableLimma,plotMA,meanCounts)
+```
+
+PCA plot
+
+```{r}
+pca <- plotCustomPCA(varianceStabilizingTransformation(dds),c("Day","Treatment")) +
+  theme_cowplot(font_size = 28) + theme(axis.line = element_line(size = 1.2))
+```
+
+Save all the figures
+
+```{r}
+save_plot("figures/Fig2A_PCA.png",pca,base_height = 8,base_width = 8,bg="white")
+save_plot("figures/Fig2B_volcano.png",volcanoPlots[[2]],base_height = 6,base_width = 6,bg="white")
+save_plot("figures/Fig2C_MAPlot.png",MAPlots[[2]],base_height = 6,base_width = 6,bg="white")
+```
