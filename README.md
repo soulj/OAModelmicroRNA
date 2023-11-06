@@ -1,12 +1,15 @@
 # ACL model of osteoarthritis mRNA and miRNA analysis
+<p align="center">
+<img src="https://github.com/soulj/OAModelmicroRNA/blob/main/figures/Fig2C_MAPlot.png" width=40% height=40% align="center">
+</p>
 
 ## Overview 
 The following R notebooks can be used to generate the bioinformatics figures and tables shown in the paper:
 
-* 01_ACLmRNA.Rmd - DESeq2 analysis of the ACL rupture model mRNA-seq
-* 02_ACLmiRNA.Rmd - DESeq2 analysis of the ACL rupture model smallRNA-seq
-* 03_mir199KD.Rmd - RNA-seq Differential expression, gene ontology and target analysis of mir199 inhibited HACs
-* 04_DMMDiffExp.Rmd - DESeq2 analysis of the DMM OA model mRNA-seq
+* 01_ACLmRNA.qmd - DESeq2 analysis of the ACL rupture model mRNA-seq
+* 02_ACLmiRNA.qmd - DESeq2 analysis of the ACL rupture model smallRNA-seq
+* 03_mir199DiffExp.qmd - RNA-seq Differential expression, gene ontology and target analysis of mir199 inhibited HACs
+* 04_DMMDiffExp.qmd - DESeq2 analysis of the DMM OA model mRNA-seq
 
 ## Running the analysis
 ### Reproducibly with singularity
